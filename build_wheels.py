@@ -245,7 +245,10 @@ def _build_flash_mla(args):
          "-v", "--no-build-isolation", "--no-deps",
          "-w", WHEEL_DIR],
         cwd=repo_dir,
-        env={"MAX_JOBS": "64"},
+        # CUDA 13 moved the CCCL headers under include/cccl; the host compile of
+        # csrc/api/api.cpp includes <cuda/std/...> and g++ does not search there.
+        env={"MAX_JOBS": "64",
+             "CPLUS_INCLUDE_PATH": "/usr/local/cuda/include/cccl"},
     )
     shutil.rmtree(repo_dir)
 
