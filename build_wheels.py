@@ -158,6 +158,7 @@ def _build_sgl_router(args):
 # v0.3.12 release cut. Drop this step for a plain pip pin once a release
 # ships the API.
 MOONCAKE_COMMIT = "4dbe5a4c194669850e9abad61172e9878b245b15"
+FLASH_MLA_COMMIT = "b7643bd54521f563b839b98289b5cd048c062ba2"  # nv_dev
 MOONCAKE_VERSION = "0.3.13.dev0+g4dbe5a4c"
 
 
@@ -229,6 +230,26 @@ def _build_mooncake(args):
     shutil.rmtree(repo_dir)
 
 
+def _build_flash_mla(args):
+    """FlashMLA nv_dev: sparse-attention kernels for Megatron's cuDNN DSA backend
+    (sm90a + sm100f; sm100 needs NVCC >= 12.9)."""
+    repo_dir = "/tmp/flash-mla"
+    if os.path.exists(repo_dir):
+        shutil.rmtree(repo_dir)
+
+    run(["git", "clone", "https://github.com/deepseek-ai/FlashMLA.git", repo_dir])
+    run(["git", "checkout", FLASH_MLA_COMMIT], cwd=repo_dir)
+    run(["git", "submodule", "update", "--init", "--recursive"], cwd=repo_dir)
+    run(
+        [sys.executable, "-m", "pip", "wheel", ".",
+         "-v", "--no-build-isolation", "--no-deps",
+         "-w", WHEEL_DIR],
+        cwd=repo_dir,
+        env={"MAX_JOBS": "64"},
+    )
+    shutil.rmtree(repo_dir)
+
+
 STEPS = {
     "flash-attn": _build_flash_attn,
     "flash-attn-hopper": _build_flash_attn_hopper,
@@ -240,6 +261,7 @@ STEPS = {
     "fast-hadamard": _build_fast_hadamard,
     "sgl-router": _build_sgl_router,
     "mooncake": _build_mooncake,
+    "flash-mla": _build_flash_mla,
 }
 
 STEP_NAMES = ", ".join(STEPS)
