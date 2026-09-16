@@ -35,3 +35,16 @@ python build_wheels.py upload --cuda 130 --arch aarch64
 ```shell
 python test_wheels.py install-and-test "${WHEEL_DIR:-/tmp/wheels}"
 ```
+
+### Update only the router
+
+Build the router wheel and standalone binary from the same source revision, then
+upload them into the existing CUDA/Torch/architecture release. Other assets stay unchanged;
+router updates do not need a separate release tag.
+
+```shell
+WHEEL_DIR=/tmp/router-wheels python build_wheels.py build --cuda 130 --arch x86 --only sgl-router --router-ref <commit>
+WHEEL_DIR=/tmp/router-wheels python build_wheels.py upload --cuda 130 --arch x86 --torch 213
+```
+
+Repeat on aarch64 with `--arch aarch64`.

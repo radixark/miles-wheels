@@ -148,7 +148,7 @@ def _build_fast_hadamard(args):
 
 def _build_sgl_router(args):
     """Build sgl-router Python wheel and standalone binary from source."""
-    cfg = build_sglang_gateway.BuildConfig(bootstrap_rust=args.bootstrap_rust)
+    cfg = build_sglang_gateway.BuildConfig(ref=args.router_ref, bootstrap_rust=args.bootstrap_rust)
     build_sglang_gateway.build(cfg, WHEEL_DIR)
 
 
@@ -389,6 +389,8 @@ def main():
     p_build.add_argument("--only", nargs="+", help=f"Only run specific steps ({STEP_NAMES})")
     p_build.add_argument("--no-bootstrap-rust", dest="bootstrap_rust", action="store_false",
                          help="Don't auto-install Rust toolchain")
+    p_build.add_argument("--router-ref", default=build_sglang_gateway.ROUTER_REF_DEFAULT,
+                         help="sgl-router source branch or commit; does not change the rolling release tag")
     p_build.set_defaults(func=cmd_build, bootstrap_rust=True)
 
     # ── upload ───────────────────────────────────────────────
