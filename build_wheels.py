@@ -17,7 +17,7 @@ WHEEL_DIR = os.environ.get("WHEEL_DIR", "/tmp/wheels")
 if not os.path.isabs(WHEEL_DIR):
     raise ValueError(f"WHEEL_DIR must be an absolute path, got {WHEEL_DIR!r}")
 
-REPO = "yueming-yuan/miles-wheels"
+REPO = "radixark/miles-wheels"
 
 
 def run(cmd, *, env=None, cwd=None):
@@ -94,18 +94,37 @@ def _build_apex(args):
     )
 
 
+INT4_QAT_REPO = "https://github.com/radixark/miles.git"
+INT4_QAT_PATH = "miles/backends/megatron_utils/kernels/int4_qat"
+INT4_QAT_MANIFEST = "fake_int4_quant_cuda-source.json"
+
+
 def _build_int4_qat(args):
     miles_dir = "/tmp/miles"
     if os.path.exists(miles_dir):
         shutil.rmtree(miles_dir)
+    manifest = os.path.join(WHEEL_DIR, INT4_QAT_MANIFEST)
+    if os.path.exists(manifest):
+        os.remove(manifest)
 
-    run(["git", "clone", "https://github.com/radixark/miles.git", miles_dir])
+    # Blobless: the manifest needs the kernel's history, not every blob.
+    run(["git", "clone", "--filter=blob:none", INT4_QAT_REPO, miles_dir])
+    run(["git", "checkout", args.int4_qat_ref], cwd=miles_dir)
+    # Record the last commit that touched the kernel rather than the checkout:
+    # miles main moves constantly, the kernel rarely.
+    commit = subprocess.check_output(
+        ["git", "log", "-1", "--format=%H", "--", INT4_QAT_PATH], cwd=miles_dir, text=True,
+    ).strip()
     run(
         [sys.executable, "-m", "pip", "wheel", ".",
          "-v", "--no-build-isolation", "--no-deps",
          "-w", WHEEL_DIR],
-        cwd=os.path.join(miles_dir, "miles/backends/megatron_utils/kernels/int4_qat"),
+        cwd=os.path.join(miles_dir, INT4_QAT_PATH),
     )
+    with open(manifest, "w") as f:
+        json.dump({"repo": INT4_QAT_REPO, "ref": args.int4_qat_ref, "commit": commit,
+                   "path": INT4_QAT_PATH}, f, indent=2)
+        f.write("\n")
 
 
 def _build_transformer_engine(args):
@@ -394,6 +413,8 @@ def main():
                          help="Don't auto-install Rust toolchain")
     p_build.add_argument("--router-ref", default=build_sglang_gateway.ROUTER_REF_DEFAULT,
                          help="sgl-router source branch or commit; does not change the rolling release tag")
+    p_build.add_argument("--int4-qat-ref", default="main",
+                         help="radixark/miles branch or commit for the int4_qat step")
     p_build.add_argument("--te-ref", default=build_transformer_engine.TE_REF_DEFAULT,
                          help="radixark/TransformerEngine branch or commit for the te step")
     p_build.add_argument("--te-phase", default="all", choices=build_transformer_engine.PHASES,

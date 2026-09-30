@@ -13,10 +13,19 @@ the newest legacy `cu<cuda>-<arch>-vX.Y.Z` release.
 
 CUDA 12.9 supports only x86_64.
 
+Three steps build from a moving source and write a `<dist>-source.json`
+manifest recording the commit they were built from, which `upload` syncs next to
+the wheels so a pipeline can rebuild only when the source moved:
+
+| step | source (override) | manifest |
+|---|---|---|
+| `sgl-router` | radixark/sgl-router-for-miles `main` (`--router-ref`) | `sglang_router-source.json` |
+| `int4_qat` | radixark/miles `main` (`--int4-qat-ref`); records the kernel directory's last commit | `fake_int4_quant_cuda-source.json` |
+| `te` | radixark/TransformerEngine `miles-main` (`--te-ref`) | `transformer_engine-source.json` |
+
 The `te` step builds all three Transformer Engine wheels from
 [radixark/TransformerEngine](https://github.com/radixark/TransformerEngine)
-`miles-main` (override with `--te-ref`), versioned `<VERSION.txt>+miles`, and
-writes `transformer_engine-source.json` recording the commit. It runs NVIDIA's
+`miles-main`, versioned `<VERSION.txt>+miles`. It runs NVIDIA's
 manylinux release recipe in Docker, so every target needs a Docker daemon with
 host-network support, but not the NVIDIA container runtime.
 
@@ -50,6 +59,16 @@ WHEEL_DIR=/tmp/router-wheels python build_wheels.py upload --cuda 130 --arch x86
 ```
 
 Repeat on aarch64 with `--arch aarch64`.
+
+`check_router_forwarding.py` smoke-tests the built router against a stub worker
+(needs `aiohttp`): it launches the installed wheel, or the binary with
+`--router-bin`, and checks that `/generate` forwards `lora_backfill_paths` and
+`return_indexer_topk`.
+
+```shell
+python check_router_forwarding.py --log-dir logs
+python check_router_forwarding.py --log-dir logs --router-bin /tmp/router-bin/sgl-model-gateway
+```
 
 ### Update only Transformer Engine
 
