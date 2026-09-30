@@ -10,6 +10,7 @@ Usage (standalone):
     python build_sglang_gateway.py --repo https://github.com/radixark/sgl-router-for-miles.git --ref main
 """
 
+import json
 import os
 import platform
 import resource
@@ -21,6 +22,8 @@ from dataclasses import dataclass
 
 ROUTER_REPO_DEFAULT = "https://github.com/radixark/sgl-router-for-miles.git"
 ROUTER_REF_DEFAULT = "main"
+# Records the commit the router assets were built from; upload syncs it next to them.
+SOURCE_MANIFEST = "sglang_router-source.json"
 
 
 @dataclass
@@ -116,8 +119,15 @@ def build(cfg: BuildConfig, out_dir: str):
 
     os.makedirs(out_dir, exist_ok=True)
 
+    manifest = os.path.join(out_dir, SOURCE_MANIFEST)
+    if os.path.exists(manifest):
+        os.remove(manifest)
+
     try:
         _checkout_git_ref(cfg.repo, cfg.ref, repo_dir)
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=repo_dir, text=True,
+        ).strip()
 
         # Raise open-file limit for Rust parallel compilation
         soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -143,6 +153,10 @@ def build(cfg: BuildConfig, out_dir: str):
         with tarfile.open(tarball, "w:gz") as tar:
             tar.add(binary, arcname="sgl-model-gateway")
         print(f"Packaged binary: {tarball}")
+
+        with open(manifest, "w") as f:
+            json.dump({"repo": cfg.repo, "ref": cfg.ref, "commit": commit}, f, indent=2)
+            f.write("\n")
     finally:
         shutil.rmtree(repo_dir, ignore_errors=True)
 
