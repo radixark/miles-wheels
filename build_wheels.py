@@ -95,7 +95,7 @@ def _build_apex(args):
 
 
 INT4_QAT_REPO = "https://github.com/radixark/miles.git"
-INT4_QAT_PATH = "miles/backends/megatron_utils/kernels/int4_qat"
+INT4_QAT_PATH = "miles/kernels/quant/int4_fake"
 INT4_QAT_MANIFEST = "fake_int4_quant_cuda-source.json"
 
 
