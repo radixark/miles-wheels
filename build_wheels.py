@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
 
 import build_sglang_gateway
 import build_transformer_engine
@@ -46,10 +47,36 @@ def _setup_env(args):
 
 # ── build steps ──────────────────────────────────────────────
 
+def _sdist_with_cxx20(name, version):
+    """Unpack the PyPI sdist of name==version with setup.py's -std=c++17 raised to c++20.
+
+    torch >= 2.14 headers refuse to compile below C++20, and these pins still hard-code
+    -std=c++17 in setup.py. Returns the unpacked source directory.
+    """
+    with urllib.request.urlopen(f"https://pypi.org/pypi/{name}/{version}/json") as resp:
+        url = next(u["url"] for u in json.load(resp)["urls"] if u["packagetype"] == "sdist")
+    work = tempfile.mkdtemp(prefix="sdist-")
+    archive = os.path.join(work, os.path.basename(url))
+    urllib.request.urlretrieve(url, archive)
+    shutil.unpack_archive(archive, work)
+    (src,) = [p for p in glob.glob(os.path.join(work, "*")) if os.path.isdir(p)]
+    setup_py = os.path.join(src, "setup.py")
+    with open(setup_py) as f:
+        text = f.read()
+    if "-std=c++17" not in text:
+        raise RuntimeError(f"{name}=={version} setup.py no longer pins -std=c++17; drop the patch")
+    with open(setup_py, "w") as f:
+        f.write(text.replace("-std=c++17", "-std=c++20"))
+    return src
+
+
 def _build_flash_attn(args):
+    # 2.7.4.post1 stays: TransformerEngine 2.17 accepts FA2 only up to 2.8.3 on
+    # Blackwell, and every such release pins C++17 (fixed after 2.8.3,
+    # Dao-AILab/flash-attention#2879).
     run(
         [sys.executable, "-m", "pip", "wheel",
-         "flash-attn==2.7.4.post1",
+         _sdist_with_cxx20("flash-attn", "2.7.4.post1"),
          "-v", "--no-build-isolation", "--no-deps",
          "-w", WHEEL_DIR],
         env={"MAX_JOBS": "64"},
@@ -145,10 +172,11 @@ def _build_causal_conv1d(args):
 
 
 def _build_mamba_ssm(args):
-    # FORCE_BUILD: same reason as causal-conv1d.
+    # FORCE_BUILD: same reason as causal-conv1d. C++20: the CUDA branch of setup.py
+    # pins C++17 in every release (state-spaces/mamba#1000 is unmerged).
     run(
         [sys.executable, "-m", "pip", "wheel",
-         "mamba-ssm==2.3.1",
+         _sdist_with_cxx20("mamba-ssm", "2.3.1"),
          "-v", "--no-build-isolation", "--no-deps",
          "-w", WHEEL_DIR],
         env={"MAMBA_FORCE_BUILD": "TRUE", "MAX_JOBS": "64"},
