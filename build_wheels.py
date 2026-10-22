@@ -321,6 +321,9 @@ STEPS = {
 }
 
 STEP_NAMES = ", ".join(STEPS)
+# Run only when named in --only: sglang pip-installs its own build requirements
+# (torch included), which must not touch the image a full build runs in.
+OPT_IN_STEPS = {"sglang"}
 
 
 # ── commands ─────────────────────────────────────────────────
@@ -340,7 +343,7 @@ def cmd_build(args):
 
     selected = {s.lower() for s in (args.only or [])}
     for name, fn in STEPS.items():
-        if selected and name not in selected:
+        if (selected and name not in selected) or (not selected and name in OPT_IN_STEPS):
             print(f"\nSkipping {name}")
             continue
         print(f"\n>>> Building {name} ...")
