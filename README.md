@@ -89,6 +89,18 @@ WHEEL_DIR=/tmp/sglang-wheels python build_wheels.py build --cuda 130 --arch x86 
 WHEEL_DIR=/tmp/sglang-wheels python build_wheels.py upload --cuda 130 --arch x86 --history-release sglang-miles
 ```
 
+### Simple index for pip and uv
+
+`build_index.py` writes a PEP 503 simple index over release assets (wheels only). Each link
+points at the release download with its sha256, so nothing is hosted twice and pip verifies
+every file:
+
+```shell
+python build_index.py --out site/cu130 --release sglang-miles-x86_64 --release sglang-miles-aarch64
+```
+
+Published to GitHub Pages, it serves `https://radixark.github.io/miles-wheels/cu130/`.
+
 ### Update only Transformer Engine
 
 `--te-phase all` needs Docker and the target torch in one environment. To split
