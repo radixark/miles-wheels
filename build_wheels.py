@@ -11,6 +11,7 @@ import sys
 import tempfile
 import urllib.request
 
+import build_sglang
 import build_sglang_gateway
 import build_transformer_engine
 
@@ -193,6 +194,10 @@ def _build_fast_hadamard(args):
     )
 
 
+def _build_sglang(args):
+    build_sglang.build(args.sglang_ref, WHEEL_DIR, run)
+
+
 def _build_sgl_router(args):
     """Build sgl-router Python wheel and standalone binary from source."""
     cfg = build_sglang_gateway.BuildConfig(ref=args.router_ref, bootstrap_rust=args.bootstrap_rust)
@@ -310,6 +315,7 @@ STEPS = {
     "mamba-ssm": _build_mamba_ssm,
     "fast-hadamard": _build_fast_hadamard,
     "sgl-router": _build_sgl_router,
+    "sglang": _build_sglang,
     "mooncake": _build_mooncake,
     "flash-mla": _build_flash_mla,
 }
@@ -371,11 +377,17 @@ def cmd_upload(args):
 
     cuda_major, cuda_minor = args.cuda[:2], args.cuda[2:]
     arch_str = "x86_64" if args.arch == "x86" else args.arch
-    torch_part = f"torch{args.torch}-" if args.torch else ""
-    tag = f"cu{args.cuda}-{torch_part}{arch_str}"
-    title = f"CUDA {cuda_major}.{cuda_minor} + {arch_str}"
-    if args.torch:
-        title += f" (torch {args.torch[0]}.{args.torch[1:]})"
+    if args.history_release:
+        # Pinned consumers install an exact version from here, so nothing is ever replaced.
+        tag = f"{args.history_release}-{arch_str}"
+        title = f"{args.history_release} ({arch_str})"
+        args.keep_superseded = True
+    else:
+        torch_part = f"torch{args.torch}-" if args.torch else ""
+        tag = f"cu{args.cuda}-{torch_part}{arch_str}"
+        title = f"CUDA {cuda_major}.{cuda_minor} + {arch_str}"
+        if args.torch:
+            title += f" (torch {args.torch[0]}.{args.torch[1:]})"
 
     local = (sorted(glob.glob(os.path.join(WHEEL_DIR, "*.whl")))
              + sorted(glob.glob(os.path.join(WHEEL_DIR, "*.tar.gz"))))
@@ -393,8 +405,8 @@ def cmd_upload(args):
 
     if not exists:
         run(["gh", "release", "create", tag, "--repo", REPO, "--title", title,
-             "--notes", f"Rolling wheel set for CUDA {cuda_major}.{cuda_minor} / {arch_str}."])
-        seed = _latest_versioned_release(tag)
+             "--notes", f"Wheel set for {title}."])
+        seed = None if args.history_release else _latest_versioned_release(tag)
         if seed:
             print(f"Seeding {tag} from legacy release {seed}")
             seed_dir = tempfile.mkdtemp(prefix="seed-wheels-")
@@ -441,6 +453,8 @@ def main():
                          help="Don't auto-install Rust toolchain")
     p_build.add_argument("--router-ref", default=build_sglang_gateway.ROUTER_REF_DEFAULT,
                          help="sgl-router source branch or commit; does not change the rolling release tag")
+    p_build.add_argument("--sglang-ref", default=build_sglang.SGLANG_REF_DEFAULT,
+                         help="sgl-project/sglang branch or commit for the sglang step")
     p_build.add_argument("--int4-qat-ref", default="main",
                          help="radixark/miles branch or commit for the int4_qat step")
     p_build.add_argument("--te-ref", default=build_transformer_engine.TE_REF_DEFAULT,
@@ -458,6 +472,9 @@ def main():
     p_upload.add_argument("--cuda", default="129", help="CUDA version, e.g. 129, 130")
     p_upload.add_argument("--arch", default="x86", choices=["x86", "aarch64"], help="Architecture")
     p_upload.add_argument("--torch", help="Torch the wheels were built against, e.g. 213; targets the cu<cuda>-torch<torch>-<arch> release the miles Dockerfile pulls")
+    p_upload.add_argument("--history-release",
+                          help="Upload into the <name>-<arch> release instead, which keeps every "
+                               "version for consumers that pin one (e.g. sglang-miles)")
     p_upload.add_argument("--keep-superseded", action="store_true",
                           help="Keep a wheel's other-version assets, so a Dockerfile still pinned "
                                "to the old version keeps building while consumers switch over")
