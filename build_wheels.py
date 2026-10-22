@@ -384,6 +384,7 @@ def cmd_upload(args):
         # Pinned consumers install an exact version from here, so nothing is ever replaced.
         tag = f"{args.history_release}-{arch_str}"
         title = f"{args.history_release} ({arch_str})"
+        notes = f"Every {args.history_release} build for {arch_str}; versions are never replaced."
         args.keep_superseded = True
     else:
         torch_part = f"torch{args.torch}-" if args.torch else ""
@@ -391,6 +392,7 @@ def cmd_upload(args):
         title = f"CUDA {cuda_major}.{cuda_minor} + {arch_str}"
         if args.torch:
             title += f" (torch {args.torch[0]}.{args.torch[1:]})"
+        notes = f"Rolling wheel set for CUDA {cuda_major}.{cuda_minor} / {arch_str}."
 
     local = (sorted(glob.glob(os.path.join(WHEEL_DIR, "*.whl")))
              + sorted(glob.glob(os.path.join(WHEEL_DIR, "*.tar.gz"))))
@@ -408,7 +410,7 @@ def cmd_upload(args):
 
     if not exists:
         run(["gh", "release", "create", tag, "--repo", REPO, "--title", title,
-             "--notes", f"Wheel set for {title}."])
+             "--notes", notes])
         seed = None if args.history_release else _latest_versioned_release(tag)
         if seed:
             print(f"Seeding {tag} from legacy release {seed}")
