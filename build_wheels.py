@@ -195,7 +195,7 @@ def _build_fast_hadamard(args):
 
 
 def _build_sglang(args):
-    build_sglang.build(args.sglang_ref, WHEEL_DIR, run)
+    build_sglang.build(args.sglang_ref, WHEEL_DIR, run, bootstrap_rust=args.bootstrap_rust)
 
 
 def _build_sgl_router(args):

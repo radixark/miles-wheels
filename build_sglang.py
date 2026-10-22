@@ -5,8 +5,10 @@ Follows upstream's PR-wheel recipe (.github/workflows/release-pypi-pr.yml in
 sgl-project/sglang): pin a static version, build against the torch the
 pyproject's build requirements name, then let upstream's
 scripts/release/prepare_sglang_wheel.py repair the wheel to a manylinux tag and
-smoke-test its Rust extension. Upstream builds on a plain GitHub-hosted Ubuntu
-runner with its preinstalled Rust toolchain, and so does this.
+smoke-test its Rust extension. Like upstream's release-pypi.yml it needs Rust and
+protoc (for the bundled gRPC extension); protoc comes from upstream's own
+install script, Rust from the router step's bootstrap. The build host's glibc
+sets the wheel's manylinux tag.
 
 The version is the last release tag on the branch with a +miles.g<commit> local
 label (e.g. 0.5.22+miles.g3a938213c1), so every sglang-miles commit gets its own
@@ -20,6 +22,8 @@ import shutil
 import subprocess
 import sys
 import tomllib
+
+import build_sglang_gateway
 
 SGLANG_REPO = "https://github.com/sgl-project/sglang.git"
 SGLANG_REF_DEFAULT = "sglang-miles"
@@ -57,7 +61,7 @@ def _build_requirements(pyproject_path):
         return tomllib.load(f)["build-system"]["requires"]
 
 
-def build(ref, out_dir, run):
+def build(ref, out_dir, run, bootstrap_rust=True):
     """Build the sglang wheel at *ref* into *out_dir*, with its source manifest."""
     repo_dir = "/tmp/sglang"
     if os.path.exists(repo_dir):
@@ -73,6 +77,11 @@ def build(ref, out_dir, run):
     commit = _git(["rev-parse", "HEAD"], repo_dir)
     version = _wheel_version(repo_dir, commit)
     print(f"sglang {ref} @ {commit} -> {version}")
+
+    # The script returns early when protoc is already installed; it writes /usr/local.
+    sudo = [] if os.geteuid() == 0 else ["sudo"]
+    run([*sudo, "bash", "scripts/ci/utils/install_protoc.sh"], cwd=repo_dir)
+    build_sglang_gateway._ensure_rust_and_maturin(bootstrap_rust)
 
     python_dir = os.path.join(repo_dir, "python")
     pyproject = os.path.join(python_dir, "pyproject.toml")
