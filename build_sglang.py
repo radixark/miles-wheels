@@ -1,18 +1,8 @@
 #!/usr/bin/env python3
-"""Build the sglang wheel from the sglang-miles branch.
+"""Build the sglang wheel from sglang-miles with upstream's own wheel recipe (release-pypi.yml).
 
-Follows upstream's PR-wheel recipe (.github/workflows/release-pypi-pr.yml in
-sgl-project/sglang): pin a static version, build against the torch the
-pyproject's build requirements name, then let upstream's
-scripts/release/prepare_sglang_wheel.py repair the wheel to a manylinux tag and
-smoke-test its Rust extension. Like upstream's release-pypi.yml it needs Rust and
-protoc (for the bundled gRPC extension); protoc comes from upstream's own
-install script, Rust from the router step's bootstrap. The build host's glibc
-sets the wheel's manylinux tag.
-
-The version is the last release tag on the branch with a +miles.g<commit> local
-label (e.g. 0.5.22+miles.g3a938213c1), so every sglang-miles commit gets its own
-version and Miles can pin the exact one it was tested with.
+Versioned <last release tag>+miles.g<commit>, so a Miles wheel can pin the exact commit it was
+tested with. The build host's glibc sets the manylinux tag.
 """
 
 import json
@@ -27,7 +17,6 @@ import build_sglang_gateway
 
 SGLANG_REPO = "https://github.com/sgl-project/sglang.git"
 SGLANG_REF_DEFAULT = "sglang-miles"
-# Records the commit the wheel was built from; upload syncs it next to the wheel.
 SOURCE_MANIFEST = "sglang-source.json"
 
 
@@ -36,7 +25,7 @@ def _git(args, cwd):
 
 
 def _wheel_version(repo_dir, commit):
-    # Same tag resolution upstream's setuptools-scm hook uses (get_version_tag.py).
+    # the tag upstream's setuptools-scm hook resolves
     tag = subprocess.check_output(
         [sys.executable, "scripts/release/get_version_tag.py", "--tag-only"], cwd=repo_dir, text=True
     ).strip()
@@ -70,7 +59,7 @@ def build(ref, out_dir, run, bootstrap_rust=True):
     if os.path.exists(manifest):
         os.remove(manifest)
 
-    # Blobless with tags: the version needs the release tags reachable from ref.
+    # the version needs the release tags
     run(["git", "clone", "--filter=blob:none", "--no-checkout", SGLANG_REPO, repo_dir])
     run(["git", "fetch", "--tags", "origin", ref], cwd=repo_dir)
     run(["git", "checkout", "-f", "FETCH_HEAD"], cwd=repo_dir)
@@ -78,7 +67,7 @@ def build(ref, out_dir, run, bootstrap_rust=True):
     version = _wheel_version(repo_dir, commit)
     print(f"sglang {ref} @ {commit} -> {version}")
 
-    # The script returns early when protoc is already installed; it writes /usr/local.
+    # protoc for the bundled gRPC extension; the script writes /usr/local
     sudo = [] if os.geteuid() == 0 else ["sudo"]
     run([*sudo, "bash", "scripts/ci/utils/install_protoc.sh"], cwd=repo_dir)
     build_sglang_gateway._ensure_rust_and_maturin(bootstrap_rust)
