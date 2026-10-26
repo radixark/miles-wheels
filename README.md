@@ -80,13 +80,13 @@ was tested with. It needs a Rust toolchain and builds against the torch that
 sglang's `pyproject.toml` names, so run it outside the CUDA images, e.g. on a
 GitHub-hosted Ubuntu runner.
 
-It uploads with `--history-release sglang-miles` into `sglang-miles-<arch>`,
+It uploads with `--history-release sglang-miles-<ISO week>` into `sglang-miles-<week>-<arch>`
 which keeps every version instead of replacing superseded ones, and stays out
 of the rolling release the Miles image downloads:
 
 ```shell
 WHEEL_DIR=/tmp/sglang-wheels python build_wheels.py build --cuda 130 --arch x86 --only sglang --sglang-ref <commit>
-WHEEL_DIR=/tmp/sglang-wheels python build_wheels.py upload --cuda 130 --arch x86 --history-release sglang-miles
+WHEEL_DIR=/tmp/sglang-wheels python build_wheels.py upload --cuda 130 --arch x86 --history-release sglang-miles-2026w43
 ```
 
 ### Update only Transformer Engine
