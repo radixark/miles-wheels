@@ -195,7 +195,7 @@ def _build_fast_hadamard(args):
 
 
 def _build_sglang(args):
-    build_sglang.build(args.sglang_ref, WHEEL_DIR, run, bootstrap_rust=args.bootstrap_rust)
+    build_sglang.build(args.sglang_ref, args.arch, WHEEL_DIR, run, bootstrap_rust=args.bootstrap_rust)
 
 
 def _build_sgl_router(args):
@@ -342,6 +342,8 @@ def cmd_build(args):
     os.makedirs(WHEEL_DIR, exist_ok=True)
 
     selected = {s.lower() for s in (args.only or [])}
+    if selected & OPT_IN_STEPS and len(selected) > 1:
+        raise ValueError(f"--only {' '.join(sorted(OPT_IN_STEPS))} must run alone: it pip-installs its own torch")
     for name, fn in STEPS.items():
         if (selected and name not in selected) or (not selected and name in OPT_IN_STEPS):
             print(f"\nSkipping {name}")
@@ -426,6 +428,10 @@ def cmd_upload(args):
     print(f"\nSyncing {len(local)} local assets into release '{tag}'")
     for path in local:
         name = os.path.basename(path)
+        if name.endswith(".whl") and args.history_release and name in remote:
+            # a rebuild is not byte-identical, and pinned hashes must keep matching
+            print(f"Keeping {name}: already in {tag}")
+            continue
         if name.endswith(".whl") and not args.keep_superseded:
             # A version bump changes the wheel filename; drop the superseded
             # asset so the Dockerfile's <dist>-*.whl glob stays unambiguous.
@@ -437,9 +443,10 @@ def cmd_upload(args):
         run(["gh", "release", "upload", tag, path, "--repo", REPO, "--clobber"])
         remote.add(name)
 
-    names = sorted({r.split("-")[0] for r in remote if r.endswith(".whl")})
-    run(["gh", "release", "edit", tag, "--repo", REPO, "--title", title,
-         "--notes", "Pre-built wheels: " + ", ".join(names)])
+    if not args.history_release:
+        names = sorted({r.split("-")[0] for r in remote if r.endswith(".whl")})
+        run(["gh", "release", "edit", tag, "--repo", REPO, "--title", title,
+             "--notes", "Pre-built wheels: " + ", ".join(names)])
 
     print(f"\nRelease synced: https://github.com/{REPO}/releases/tag/{tag}")
 

@@ -74,9 +74,10 @@ python check_router_forwarding.py --log-dir logs --router-bin /tmp/router-bin/sg
 ### Build sglang from sglang-miles
 
 The `sglang` step builds one sglang wheel from the `sglang-miles` branch with
-upstream's own PR-wheel recipe, versioned `<last release tag>+miles.g<commit>`
-(e.g. `0.5.22+miles.g91e3f429e5`) so a Miles wheel can pin the exact commit it
-was tested with. It needs a Rust toolchain and builds against the torch that
+upstream's own wheel recipe, versioned `<tag it is built on>.post<commits since>+miles.g<commit>`
+(e.g. `0.5.22.post57+miles.g91e3f429e5`): builds sort by commit, and a Miles wheel can pin
+the exact one it was tested with. `--only sglang` runs alone (it pip-installs its own torch),
+and a history-release upload never replaces a wheel already there. It needs a Rust toolchain and builds against the torch that
 sglang's `pyproject.toml` names, so run it outside the CUDA images, e.g. on a
 GitHub-hosted Ubuntu runner.
 

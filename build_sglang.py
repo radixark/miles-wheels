@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """Build the sglang wheel from sglang-miles with upstream's own wheel recipe (release-pypi.yml).
 
-Versioned <last release tag>+miles.g<commit>, so a Miles wheel can pin the exact commit it was
-tested with. The build host's glibc sets the manylinux tag.
+Versioned <tag sglang-miles is built on>.post<commits since it>+miles.g<commit>: builds sort by
+commit, and a Miles wheel can pin the exact one it was tested with. The build host's glibc sets the
+manylinux tag.
 """
 
 import json
 import os
-import re
+import platform
 import shutil
 import subprocess
 import sys
-import tomllib
+
+from packaging.version import Version
 
 import build_sglang_gateway
 
@@ -25,13 +27,10 @@ def _git(args, cwd):
 
 
 def _wheel_version(repo_dir, commit):
-    # the tag upstream's setuptools-scm hook resolves
-    tag = subprocess.check_output(
-        [sys.executable, "scripts/release/get_version_tag.py", "--tag-only"], cwd=repo_dir, text=True
-    ).strip()
-    if not re.fullmatch(r"v\d+\.\d+\.\d+(\.post\d+|rc\d+)?", tag):
-        raise RuntimeError(f"unexpected sglang release tag {tag!r}")
-    return f"{tag[1:]}+miles.g{commit[:10]}"
+    # HEAD's own tag: upstream's get_version_tag.py takes the highest tag on any branch
+    tag = _git(["describe", "--tags", "--abbrev=0", "--match", "v[0-9]*", "HEAD"], repo_dir)
+    count = _git(["rev-list", "--count", f"{tag}..HEAD"], repo_dir)
+    return str(Version(f"{tag[1:]}.post{count}+miles.g{commit[:10]}"))
 
 
 def _pin_version(pyproject_path, version):
@@ -46,12 +45,18 @@ def _pin_version(pyproject_path, version):
 
 
 def _build_requirements(pyproject_path):
+    import tomllib  # 3.11+, needed only by this step
+
     with open(pyproject_path, "rb") as f:
         return tomllib.load(f)["build-system"]["requires"]
 
 
-def build(ref, out_dir, run, bootstrap_rust=True):
+def build(ref, arch, out_dir, run, bootstrap_rust=True):
     """Build the sglang wheel at *ref* into *out_dir*, with its source manifest."""
+    # the upload picks its release from --arch, not from the wheel's platform tag
+    machine = {"x86": "x86_64"}.get(arch, arch)
+    if platform.machine() != machine:
+        raise RuntimeError(f"--arch {arch} on a {platform.machine()} host would mislabel the sglang wheel")
     repo_dir = "/tmp/sglang"
     if os.path.exists(repo_dir):
         shutil.rmtree(repo_dir)
