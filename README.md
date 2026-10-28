@@ -13,7 +13,7 @@ the newest legacy `cu<cuda>-<arch>-vX.Y.Z` release.
 
 CUDA 12.9 supports only x86_64.
 
-Three steps build from a moving source and write a `<dist>-source.json`
+Four steps build from a moving source and write a `<dist>-source.json`
 manifest recording the commit they were built from, which `upload` syncs next to
 the wheels so a pipeline can rebuild only when the source moved:
 
@@ -22,6 +22,7 @@ the wheels so a pipeline can rebuild only when the source moved:
 | `sgl-router` | radixark/sgl-router-for-miles `main` (`--router-ref`) | `sglang_router-source.json` |
 | `int4_qat` | radixark/miles `main` (`--int4-qat-ref`); records the kernel directory's last commit | `fake_int4_quant_cuda-source.json` |
 | `te` | radixark/TransformerEngine `miles-main` (`--te-ref`) | `transformer_engine-source.json` |
+| `sglang` | sgl-project/sglang `sglang-miles` (`--sglang-ref`) | `sglang-source.json` |
 
 The `te` step builds all three Transformer Engine wheels from
 [radixark/TransformerEngine](https://github.com/radixark/TransformerEngine)
@@ -68,6 +69,25 @@ Repeat on aarch64 with `--arch aarch64`.
 ```shell
 python check_router_forwarding.py --log-dir logs
 python check_router_forwarding.py --log-dir logs --router-bin /tmp/router-bin/sgl-model-gateway
+```
+
+### Build sglang from sglang-miles
+
+The `sglang` step builds one sglang wheel from the `sglang-miles` branch with
+upstream's own wheel recipe, versioned `<tag it is built on>.post<commits since>+miles.g<commit>`
+(e.g. `0.5.22.post57+miles.g91e3f429e5`): builds sort by commit, and a Miles wheel can pin
+the exact one it was tested with. `--only sglang` runs alone (it pip-installs its own torch),
+and a history-release upload never replaces a wheel already there. It needs a Rust toolchain and builds against the torch that
+sglang's `pyproject.toml` names, so run it outside the CUDA images, e.g. on a
+GitHub-hosted Ubuntu runner.
+
+It uploads with `--history-release sglang-miles-<ISO week>` into `sglang-miles-<week>-<arch>`
+which keeps every version instead of replacing superseded ones, and stays out
+of the rolling release the Miles image downloads:
+
+```shell
+WHEEL_DIR=/tmp/sglang-wheels python build_wheels.py build --cuda 130 --arch x86 --only sglang --sglang-ref <commit>
+WHEEL_DIR=/tmp/sglang-wheels python build_wheels.py upload --cuda 130 --arch x86 --history-release sglang-miles-2026w43
 ```
 
 ### Update only Transformer Engine
