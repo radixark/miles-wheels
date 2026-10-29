@@ -90,6 +90,26 @@ WHEEL_DIR=/tmp/sglang-wheels python build_wheels.py build --cuda 130 --arch x86 
 WHEEL_DIR=/tmp/sglang-wheels python build_wheels.py upload --cuda 130 --arch x86 --history-release sglang-miles-2026w43
 ```
 
+### Simple index for pip and uv
+
+`build_index.py` writes a PEP 503 simple index over the wheels in every release whose tag
+starts with a prefix, across repositories. Each link points at the release download with its
+sha256, so nothing is hosted twice and pip verifies every file:
+
+```shell
+python build_index.py --out site/simple \
+    --releases radixark/miles-wheels:sglang-miles- --releases radixark/miles:v
+```
+
+`pages.yml` runs that hourly and on dispatch and publishes `site/` to GitHub Pages, so
+`https://radixark.github.io/miles-wheels/simple/` serves `sglang` (every sglang-miles build)
+and `miles` (every tagged release). PyPI also has an unrelated `miles`, so installs pin the
+exact version:
+
+```shell
+pip install "miles==0.1.4" --extra-index-url https://radixark.github.io/miles-wheels/simple/
+```
+
 ### Update only Transformer Engine
 
 `--te-phase all` needs Docker and the target torch in one environment. To split

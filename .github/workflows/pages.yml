@@ -1,0 +1,47 @@
+name: Publish the pip index
+
+# A PEP 503 index over the sglang-miles wheels here and the miles wheels on radixark/miles
+# releases, served from GitHub Pages at https://radixark.github.io/miles-wheels/simple/.
+# Rebuilt hourly after build-wheels.yml's sglang job, and on dispatch from release-wheel.yml.
+
+on:
+  schedule:
+    - cron: '5 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [build_index.py, .github/workflows/pages.yml]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the index
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 build_index.py --out site/simple \
+            --releases radixark/miles-wheels:sglang-miles- \
+            --releases radixark/miles:v
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
