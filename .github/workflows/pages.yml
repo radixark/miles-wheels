@@ -31,6 +31,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # an admin turns Pages on under Settings > Pages (source: GitHub Actions); until then the
+      # deployment API answers 404 and every hourly run would fail
+      - name: Is GitHub Pages enabled?
+        id: pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${GITHUB_REPOSITORY}/pages" --silent 2>/dev/null; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::GitHub Pages is not enabled on ${GITHUB_REPOSITORY}; the index was built but not published"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Build the index
         env:
           GH_TOKEN: ${{ github.token }}
@@ -39,9 +53,11 @@ jobs:
             --releases radixark/miles-wheels:sglang-miles- \
             --releases radixark/miles:v
 
-      - uses: actions/upload-pages-artifact@v3
+      - if: steps.pages.outputs.enabled == 'true'
+        uses: actions/upload-pages-artifact@v3
         with:
           path: site
 
       - id: deploy
+        if: steps.pages.outputs.enabled == 'true'
         uses: actions/deploy-pages@v4
